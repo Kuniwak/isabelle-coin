@@ -1,7 +1,7 @@
 theory Coin imports "~~/src/HOL/Library/Multiset" begin
 
 
-section "Fundamental lemmas"
+section "Fundamental Lemmas"
 subsection "nat"
 lemma le_div_plus_mod[rule_format]: "\<forall>x. x \<ge> y \<longrightarrow> y > 1 \<longrightarrow> x > x div y + x mod y" for x :: nat and y :: nat
   apply(induct y)
@@ -125,14 +125,12 @@ lemma image_mset_diff_nat: "B \<subseteq># A \<Longrightarrow> image_mset f (A -
   by (metis image_mset_Diff image_mset_def)
 
 
-section "Coin"
+section "Coins"
 subsection "Coin Definitions"
 datatype Coin = One | Five | Ten | Fifty | Hundred | FiveHundred
 
 
-fun
-  next_Coin :: "Coin \<Rightarrow> Coin option"
-where
+fun next_Coin :: "Coin \<Rightarrow> Coin option"where
   "next_Coin One = Some Five" |
   "next_Coin Five = Some Ten" |
   "next_Coin Ten = Some Fifty" |
@@ -141,9 +139,7 @@ where
   "next_Coin FiveHundred = None"
 
 
-fun
-  redundant_since :: "Coin \<Rightarrow> nat option"
-where
+fun redundant_since :: "Coin \<Rightarrow> nat option"where
   "redundant_since One = Some 5" |
   "redundant_since Five = Some 2" |
   "redundant_since Ten = Some 5" |
@@ -172,10 +168,8 @@ lemma all_redundant_since_imp: "(\<forall>c m. redundant_since c = Some m \<long
   done
 
 
-subsection "value of Coins"
-fun
-  val1 :: "Coin \<Rightarrow> nat"
-where
+subsection "Value of Coins"
+fun val1 :: "Coin \<Rightarrow> nat" where
   "val1 One = 1" |
   "val1 Five = 5" |
   "val1 Ten = 10" |
@@ -238,9 +232,7 @@ lemma val1_eq_0E: "val1 x = 0 \<Longrightarrow> P"
   done
 
 
-definition
-  val :: "Coin multiset \<Rightarrow> nat"
-where
+definition val :: "Coin multiset \<Rightarrow> nat" where
   "val M = sum_mset (image_mset val1 M)"
 
 
@@ -344,9 +336,7 @@ lemma val1_next_Coin: "\<lbrakk> redundant_since c = Some m; next_Coin c = Some 
 
 
 subsection "Normal form"
-definition
-  normal :: "Coin multiset \<Rightarrow> bool"
-where
+definition normal :: "Coin multiset \<Rightarrow> bool" where
   "normal C \<equiv> \<forall>C'. val C = val C' \<longrightarrow> size C \<le> size C'"  
 
 
@@ -369,9 +359,7 @@ lemma not_normal_singletonE: "\<not>normal {# c #} \<Longrightarrow> P"
   done
 
 
-definition
-  normalize1 :: "Coin \<Rightarrow> Coin multiset \<Rightarrow> Coin multiset"
-where
+definition normalize1 :: "Coin \<Rightarrow> Coin multiset \<Rightarrow> Coin multiset" where
   "normalize1 c C \<equiv> case (next_Coin c, redundant_since c) of
     (Some c', Some n) \<Rightarrow>
       C - (replicate_mset (count C c) c)
@@ -460,9 +448,7 @@ lemma normal_add_add_imp_normal: "normal (add_mset c1 (add_mset c2 C)) \<Longrig
   done
 
 
-definition
-  no_redundant :: "Coin multiset \<Rightarrow> bool"
-where
+definition no_redundant :: "Coin multiset \<Rightarrow> bool" where
   "no_redundant C \<equiv> \<forall>c n. redundant_since c = Some n \<longrightarrow> count C c < n"
 
 
