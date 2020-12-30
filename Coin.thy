@@ -1,6 +1,8 @@
 theory Coin imports "~~/src/HOL/Library/Multiset" begin
 
 
+section "Fundamental lemmas"
+subsection "nat"
 lemma le_div_plus_mod[rule_format]: "\<forall>x. x \<ge> y \<longrightarrow> y > 1 \<longrightarrow> x > x div y + x mod y" for x :: nat and y :: nat
   apply(induct y)
   apply(force)
@@ -28,6 +30,40 @@ lemma a_plus_b_eq_b_plus_c_minus_d: "c \<ge> d \<Longrightarrow> a + b = b + c -
   by auto
 
 
+lemma a_plus_b_minus_c_le_a: "c \<ge> b \<Longrightarrow> a + b - c \<le> a" for a :: nat
+  apply(simp)
+  done
+
+
+lemma le_1_is_lt_2: "x \<le> Suc 0 \<Longrightarrow> x < 2" for x :: nat
+  by auto
+
+
+lemma le_4_is_lt_5: "x \<le> 4 \<Longrightarrow> x < 5" for x :: nat
+  by auto
+
+
+lemma le_Suc_flip_le: "\<lbrakk> x \<le> Suc y; y < x \<rbrakk> \<Longrightarrow> Suc y = x"
+  apply(simp)
+  done
+
+
+lemma neq_le_SucD: "\<lbrakk> x \<noteq> z; x < y; y = z + 1 \<rbrakk> \<Longrightarrow> x < z" for x :: nat
+  apply(auto)
+  done
+
+
+lemma n_eq_div_plus_mod: "v2 = m * v1 \<Longrightarrow> n * v1 = n div m * v2 + n mod m * v1" for n :: nat
+  by (metis distrib_right div_mult_mod_eq mult.assoc)
+
+
+lemma le_minus[rule_format]: "x \<le> x - y \<longrightarrow> x \<le> y \<or> y = 0"  for x :: nat
+  apply(induct x arbitrary: y)
+  apply(auto)
+  done
+
+
+subsection "multiset"
 lemma (in comm_monoid_diff) fold_mset_empty: "fold_mset (+) x {#} = x"
   by auto
 
@@ -64,13 +100,79 @@ lemma count_le_size: "count C x \<le> size C"
   using replicate_mset_subseteq size_mset_mono by fastforce
 
 
-lemma n_eq_div_plus_mod: "v2 = m * v1 \<Longrightarrow> n * v1 = n div m * v2 + n mod m * v1" for n :: nat
-  by (metis distrib_right div_mult_mod_eq mult.assoc)
+lemma count_add_mset_eq_count: "\<lbrakk> xa \<noteq> x \<rbrakk> \<Longrightarrow> count (add_mset xa M) x = count M x"
+  by auto
 
 
+lemma count_eq_replicate_mset_subset_eq: "count M x = n \<Longrightarrow> replicate_mset n x \<subseteq># M"
+  using count_le_replicate_mset_subset_eq by fastforce
+
+
+lemma subset_add_weak: "A \<subseteq># B \<Longrightarrow> A \<subseteq># add_mset x B"
+  using subset_mset.order.trans by fastforce
+
+
+lemma subset_plus_weak: "A \<subseteq># B \<Longrightarrow> A \<subseteq># B + C"
+  by (simp add: subset_mset.add_increasing2)
+
+
+lemma count_size_FalseE: "\<lbrakk>count M x = n; size M < n\<rbrakk> \<Longrightarrow> False"
+  by (meson count_le_size not_le)
+
+
+lemma image_mset_diff_nat: "B \<subseteq># A \<Longrightarrow> image_mset f (A - B) = image_mset f A - image_mset f B"  for f :: "'a \<Rightarrow> nat"
+  apply(unfold image_mset_def)
+  by (metis image_mset_Diff image_mset_def)
+
+
+section "Coin"
+subsection "Coin Definitions"
 datatype Coin = One | Five | Ten | Fifty | Hundred | FiveHundred
 
 
+fun
+  next_Coin :: "Coin \<Rightarrow> Coin option"
+where
+  "next_Coin One = Some Five" |
+  "next_Coin Five = Some Ten" |
+  "next_Coin Ten = Some Fifty" |
+  "next_Coin Fifty = Some Hundred" |
+  "next_Coin Hundred = Some FiveHundred" |
+  "next_Coin FiveHundred = None"
+
+
+fun
+  redundant_since :: "Coin \<Rightarrow> nat option"
+where
+  "redundant_since One = Some 5" |
+  "redundant_since Five = Some 2" |
+  "redundant_since Ten = Some 5" |
+  "redundant_since Fifty = Some 2" |
+  "redundant_since Hundred = Some 5" |
+  "redundant_since FiveHundred = None"
+
+
+lemma redundant_sinceD: "redundant_since c = Some m \<Longrightarrow> \<exists>c'. next_Coin c = Some c'"
+  apply(case_tac c)
+  apply(auto)
+  done
+
+
+lemma redundant_since_gtD: "redundant_since x = Some m \<Longrightarrow> m > 1"
+  apply(case_tac x)
+  apply(auto)
+  done
+
+
+lemma all_redundant_since_imp: "(\<forall>c m. redundant_since c = Some m \<longrightarrow> P c m) \<longleftrightarrow>
+    (P One 5 \<and> P Five 2 \<and> P Ten 5 \<and> P Fifty 2 \<and> P Hundred 5)"
+  apply(auto)
+  apply(case_tac c)
+  apply(auto)
+  done
+
+
+subsection "value of Coins"
 fun
   val1 :: "Coin \<Rightarrow> nat"
 where
@@ -158,11 +260,6 @@ theorem val_plus: "val (A + B) = val A + val B"
   done
 
 
-lemma image_mset_diff_nat: "B \<subseteq># A \<Longrightarrow> image_mset f (A - B) = image_mset f A - image_mset f B"  for f :: "'a \<Rightarrow> nat"
-  apply(unfold image_mset_def)
-  by (metis image_mset_Diff image_mset_def)
-
-
 theorem val_diff: "B \<subseteq># A \<Longrightarrow> val (A - B) = val A - val B"
   apply(auto simp add: val_def)
   apply(subst image_mset_diff_nat)
@@ -227,35 +324,14 @@ lemma count_le_val: "count C x * val1 x \<le> val C"
   done
 
 
-fun
-  next_Coin :: "Coin \<Rightarrow> Coin option"
-where
-  "next_Coin One = Some Five" |
-  "next_Coin Five = Some Ten" |
-  "next_Coin Ten = Some Fifty" |
-  "next_Coin Fifty = Some Hundred" |
-  "next_Coin Hundred = Some FiveHundred" |
-  "next_Coin FiveHundred = None"
-
-
-fun
-  redundant_since :: "Coin \<Rightarrow> nat option"
-where
-  "redundant_since One = Some 5" |
-  "redundant_since Five = Some 2" |
-  "redundant_since Ten = Some 5" |
-  "redundant_since Fifty = Some 2" |
-  "redundant_since Hundred = Some 5" |
-  "redundant_since FiveHundred = None"
-
-
-lemma redundant_sinceD: "redundant_since c = Some m \<Longrightarrow> \<exists>c'. next_Coin c = Some c'"
-  apply(case_tac c)
-  apply(auto)
-  done
-
-
-lemma redundant_since_gtD: "redundant_since x = Some m \<Longrightarrow> m > 1"
+lemma same_val_singleton_size_le[rule_format]: "val {#c#} = val C \<longrightarrow> size {#c#} \<le> size C"
+  apply(case_tac C)
+  apply(erule ssubst)
+  apply(rule impI)
+  apply(subst (asm) val_add)
+  apply(subst (asm) (1 2) val_empty)
+  apply(subst (asm) add_0_right)
+  apply(erule val1_eq_0E)
   apply(case_tac x)
   apply(auto)
   done
@@ -267,6 +343,7 @@ lemma val1_next_Coin: "\<lbrakk> redundant_since c = Some m; next_Coin c = Some 
   done
 
 
+subsection "Normal form"
 definition
   normal :: "Coin multiset \<Rightarrow> bool"
 where
@@ -275,19 +352,6 @@ where
 
 lemma normal_empty: "normal {#}"
   apply(unfold normal_def)
-  apply(auto)
-  done
-
-
-lemma same_val_singleton_size_le[rule_format]: "val {#c#} = val C \<longrightarrow> size {#c#} \<le> size C"
-  apply(case_tac C)
-  apply(erule ssubst)
-  apply(rule impI)
-  apply(subst (asm) val_add)
-  apply(subst (asm) (1 2) val_empty)
-  apply(subst (asm) add_0_right)
-  apply(erule val1_eq_0E)
-  apply(case_tac x)
   apply(auto)
   done
 
@@ -352,43 +416,6 @@ theorem same_val_size_leI: "\<lbrakk> redundant_since c = Some m; count C c \<ge
   done
 
 
-lemma count_add_mset_eq_count: "\<lbrakk> xa \<noteq> x \<rbrakk> \<Longrightarrow> count (add_mset xa M) x = count M x"
-  apply(auto)
-  done
-
-
-lemma count_eq_replicate_mset_subset_eq: "count M x = n \<Longrightarrow> replicate_mset n x \<subseteq># M"
-  using count_le_replicate_mset_subset_eq by fastforce
-
-
-lemma le_minus[rule_format]: "x \<le> x - y \<longrightarrow> x \<le> y \<or> y = 0"  for x :: nat
-  apply(induct x arbitrary: y)
-  apply(auto)
-  done
-
-
-lemma subset_add_weak: "A \<subseteq># B \<Longrightarrow> A \<subseteq># add_mset x B"
-  using subset_mset.order.trans by fastforce
-
-
-lemma subset_plus_weak: "A \<subseteq># B \<Longrightarrow> A \<subseteq># B + C"
-  by (simp add: subset_mset.add_increasing2)
-
-
-lemma le_1_is_lt_2: "x \<le> Suc 0 \<Longrightarrow> x < 2" for x :: nat
-  apply(auto)
-  done
-
-
-lemma le_4_is_lt_5: "x \<le> 4 \<Longrightarrow> x < 5" for x :: nat
-  apply(auto)
-  done
-
-
-lemma count_size_FalseE: "\<lbrakk>count M x = n; size M < n\<rbrakk> \<Longrightarrow> False"
-  by (meson count_le_size not_le)
-
-
 theorem not_normal_if_redundant: "\<lbrakk> redundant_since c = Some m; count C c = m \<rbrakk> \<Longrightarrow> \<not> normal C"
   apply(unfold normal_def)
   apply(subst not_all)
@@ -410,11 +437,6 @@ theorem not_normal_if_redundant: "\<lbrakk> redundant_since c = Some m; count C 
   apply(auto)
   apply(case_tac c)
   apply(auto dest!: le_minus le_1_is_lt_2 le_4_is_lt_5 elim: count_size_FalseE)
-  done
-
-
-lemma neq_le_SucD: "\<lbrakk> x \<noteq> z; x < y; y = z + 1 \<rbrakk> \<Longrightarrow> x < z" for x :: nat
-  apply(auto)
   done
 
 
@@ -465,11 +487,6 @@ lemma no_redundant_add_imp_no_redundant[rule_format]: "no_redundant (add_mset c 
   done
 
 
-lemma le_Suc_flip_le: "\<lbrakk> x \<le> Suc y; y < x \<rbrakk> \<Longrightarrow> Suc y = x"
-  apply(simp)
-  done
-
-
 lemma no_redundant_not_no_redundant_addD: "\<lbrakk> no_redundant C; \<not> no_redundant (add_mset c C) \<rbrakk> \<Longrightarrow> redundant_since c = Some (Suc (count C c))"
   apply(unfold no_redundant_def not_all not_imp not_less)
   apply(elim exE conjE)
@@ -492,17 +509,11 @@ lemma no_redundant_not_no_redundant_addD: "\<lbrakk> no_redundant C; \<not> no_r
   done
 
 
-
 lemma redundant_since_eq_Some_SucD: "\<lbrakk> redundant_since c = Some (Suc (count C c)); next_Coin c = Some c' \<rbrakk> \<Longrightarrow> val (replicate_mset (count C c) c) \<le> val {#c'#}"
   apply(subst val_replicate_mset_count)
   apply(subst val_singleton)
   apply(case_tac c)
   apply(auto)
-  done
-
-
-lemma a_plus_b_minus_c_le_a: "c \<ge> b \<Longrightarrow> a + b - c \<le> a" for a :: nat
-  apply(simp)
   done
 
 
@@ -564,14 +575,6 @@ theorem normal_imp_no_redundant: "normal C \<Longrightarrow> no_redundant C"
   done
 
 
-lemma all_redundant_since_imp: "(\<forall>c m. redundant_since c = Some m \<longrightarrow> P c m) \<longleftrightarrow>
-    (P One 5 \<and> P Five 2 \<and> P Ten 5 \<and> P Fifty 2 \<and> P Hundred 5)"
-  apply(auto)
-  apply(case_tac c)
-  apply(auto)
-  done
-
-
 lemma x[rule_format]: "no_redundant C \<longrightarrow> val C = val C' \<longrightarrow> size C \<le> size C' \<longrightarrow>
        no_redundant (add_mset x C) \<longrightarrow> val (add_mset x C) = val C' \<longrightarrow> size (add_mset x C) \<le> size C'"
   apply(induct C')
@@ -589,22 +592,22 @@ lemma "no_redundant C \<longrightarrow> val C = val C' \<longrightarrow> size C 
   apply(subst size_empty)
   apply(rule le0)
   apply(clarify)
+  oops
 
 
 theorem no_redundant_imp_normal[rule_format]: "no_redundant C \<longrightarrow> normal C"
   apply(unfold no_redundant_def normal_def)
-
-
+  oops
 
 
 theorem normal_uniq: "\<lbrakk> normal C1; normal C2; val C1 = val C2 \<rbrakk> \<Longrightarrow> C1 = C2"
   apply(auto simp add: normal_def)
-  done
-
+  oops
 
 
 theorem normal_total: "\<forall>v. \<exists>C. v = val C \<and> normal C"
   apply(unfold normal_def)
+  oops
 
 
 theorem "\<lbrakk> normal C0; normal C2 \<rbrakk> \<Longrightarrow> \<exists>C1. C1 \<subseteq># C0 \<and> normal (C0 - C1 + C2)"
