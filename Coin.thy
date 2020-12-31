@@ -3,6 +3,42 @@ theory Coin imports "~~/src/HOL/Library/Multiset" begin
 
 section "Fundamental Lemmas"
 subsection "nat"
+
+
+theorem "\<lbrakk> v1 dvd v2; v = v1 * c1 + v2 * c2; c2 \<ge> c2' \<rbrakk> \<Longrightarrow> \<exists>c1'. v = v1 * (c1 + c1') + v2 * (c2 - c2')" for v :: nat
+  apply(rule_tac x="(v2 div v1) * c2'" in exI)
+  apply(unfold add_mult_distrib2 diff_mult_distrib2)
+  apply(subst (1) mult.commute)
+  apply(subst mult.assoc[symmetric])
+  apply(subst dvd_mult_div_cancel)
+  apply(assumption)
+  apply(subst diff_add_assoc[symmetric])
+  apply(case_tac "v2 = 0")
+  apply(erule_tac s=0 in ssubst)
+  apply(subst (1 2) mult_0)
+  apply(rule order.refl)
+  apply(subst (asm) le_less)
+  apply(erule disjE)
+  apply(subst le_less)
+  apply(rule disjI1)
+  apply(subst nat_mult_less_cancel1)
+  apply(subst (asm) neq0_conv)
+  apply(assumption)
+  apply(assumption)
+  apply(erule_tac s=c2 in ssubst)
+  apply(rule order.refl)
+  apply(subst add.assoc)
+  apply(subst (2) add.commute)
+  apply(subst add.assoc[symmetric])
+  apply(subst diff_add_assoc)
+  apply(rule order.refl)
+  apply(subst diff_self_eq_0)
+  apply(subst add_0_right)
+  apply(subst mult.commute)
+  apply(assumption)
+  done
+
+
 lemma le_div_plus_mod[rule_format]: "\<forall>x. x \<ge> y \<longrightarrow> y > 1 \<longrightarrow> x > x div y + x mod y" for x :: nat and y :: nat
   apply(induct y)
   apply(force)
