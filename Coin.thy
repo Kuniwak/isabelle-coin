@@ -236,23 +236,29 @@ definition val :: "Coin multiset \<Rightarrow> nat" where
   "val M = sum_mset (image_mset val1 M)"
 
 
-theorem val_empty: "val {#} = 0"
+lemma val_empty: "val {#} = 0"
   apply(auto simp add: val_def)
   done
 
 
-theorem val_add: "val (add_mset x M) = val1 x + val M"
+lemma val_singleton: "val {#c#} = val1 c"
+  apply(unfold val_def)
+  apply(auto)
+  done
+
+
+lemma val_add: "val (add_mset x M) = val1 x + val M"
   apply(induct M)
   apply(auto simp add: val_def)
   done
 
 
-theorem val_plus: "val (A + B) = val A + val B"
+lemma val_plus: "val (A + B) = val A + val B"
   apply(auto simp add: val_def)
   done
 
 
-theorem val_diff: "B \<subseteq># A \<Longrightarrow> val (A - B) = val A - val B"
+lemma val_diff: "B \<subseteq># A \<Longrightarrow> val (A - B) = val A - val B"
   apply(auto simp add: val_def)
   apply(subst image_mset_diff_nat)
   apply(assumption)
@@ -268,13 +274,13 @@ theorem val_aribitrary: "\<exists>C1 C2. C1 \<noteq> C2 \<and> val C1 = val C2"
   done
 
 
-theorem val_0: "val C = 0 \<longleftrightarrow> C = {#}"
+lemma val_0: "val C = 0 \<longleftrightarrow> C = {#}"
   apply(case_tac C)
   apply(auto simp add: val_empty val_add val1_gt_0)
   done
 
 
-theorem val_add_gt_0: "val (add_mset c C) > 0"
+lemma val_add_gt_0: "val (add_mset c C) > 0"
   apply(subst val_add)
   apply(rule trans_less_add1)
   apply(rule val1_gt_0)
@@ -295,12 +301,6 @@ lemma val_gt_0_eq_not_empty: "val C > 0 \<longleftrightarrow> C \<noteq> {#}"
   apply(elim exE)
   apply(erule ssubst)
   apply(rule val_add_gt_0)
-  done
-
-
-lemma val_singleton: "val {#c#} = val1 c"
-  apply(unfold val_def)
-  apply(auto)
   done
 
 
@@ -359,48 +359,23 @@ lemma not_normal_singletonE: "\<not>normal {# c #} \<Longrightarrow> P"
   done
 
 
-definition normalize1 :: "Coin \<Rightarrow> Coin multiset \<Rightarrow> Coin multiset" where
-  "normalize1 c C \<equiv> case (next_Coin c, redundant_since c) of
-    (Some c', Some n) \<Rightarrow>
-      C - (replicate_mset (count C c) c)
-      + (replicate_mset ((count C c) div n) c')
-      + (replicate_mset ((count C c) mod n) c) |
-    _ \<Rightarrow> C"
-
-
-lemma redundant_since_normnalize1_D: "\<lbrakk> redundant_since c = Some n; C' = normalize1 c C; next_Coin c = Some c' \<rbrakk> \<Longrightarrow>
-    C' = C - (replicate_mset (count C c) c)
-       + (replicate_mset ((count C c) div n) c')
-       + (replicate_mset ((count C c) mod n) c)"
-  apply(unfold normalize1_def)
+lemma normal_add_imp_normal: "normal (add_mset c C) \<Longrightarrow> normal C"
+  apply(unfold normal_def)
+  apply(auto)
+  apply(drule_tac x="add_mset c C'" in spec)
+  apply(drule mp)
+  apply(subst (1 2) val_add)
   apply(auto)
   done
 
 
-theorem same_val_size_leI: "\<lbrakk> redundant_since c = Some m; count C c \<ge> m; C' = normalize1 c C \<rbrakk> \<Longrightarrow> val C = val C' \<and> size C' < size C"
-  apply(frule redundant_sinceD)
-  apply(elim exE)
-  apply(frule redundant_since_normnalize1_D)
-  apply(assumption)
-  apply(assumption)
-  apply(erule_tac s=" C - replicate_mset (count C c) c + replicate_mset (count C c div m) c' + replicate_mset (count C c mod m) c" in ssubst)
-  apply(auto simp add: val_plus val_replicate_mset_count)
-  apply(subst val_diff)
-  apply(rule replicate_mset_subseteq)
-  apply(subst val_replicate_mset_count)
-  apply(subst a_eq_a_minus_b_plus_c_plus_d_is_b_eq_c_plus_d)
-  apply(rule count_le_val)
-  apply(rule n_eq_div_plus_mod)
-  apply(force intro: val1_next_Coin)
-  apply(subst size_Diff_submset)
-  apply(rule replicate_mset_subseteq)
-  apply(subst size_replicate_mset)
-  apply(subst a_minus_b_plus_c_plus_d_le_a)
-  apply(rule count_le_size)
-  apply(rule le_div_plus_mod)
-  apply(assumption)
-  apply(case_tac c)
-  apply(auto)
+lemma normal_add_add_imp_normal: "normal (add_mset c1 (add_mset c2 C)) \<Longrightarrow> normal C \<and> normal (add_mset c1 C) \<and> normal (add_mset c2 C)"
+  apply(intro conjI)
+  apply(drule normal_add_imp_normal)
+  apply(erule normal_add_imp_normal)
+  apply(subst (asm) add_mset_commute)
+  apply(erule normal_add_imp_normal)
+  apply(erule normal_add_imp_normal)
   done
 
 
@@ -425,26 +400,6 @@ theorem not_normal_if_redundant: "\<lbrakk> redundant_since c = Some m; count C 
   apply(auto)
   apply(case_tac c)
   apply(auto dest!: le_minus le_1_is_lt_2 le_4_is_lt_5 elim: count_size_FalseE)
-  done
-
-
-lemma normal_add_imp_normal: "normal (add_mset c C) \<Longrightarrow> normal C"
-  apply(unfold normal_def)
-  apply(auto)
-  apply(drule_tac x="add_mset c C'" in spec)
-  apply(drule mp)
-  apply(subst (1 2) val_add)
-  apply(auto)
-  done
-
-
-lemma normal_add_add_imp_normal: "normal (add_mset c1 (add_mset c2 C)) \<Longrightarrow> normal C \<and> normal (add_mset c1 C) \<and> normal (add_mset c2 C)"
-  apply(intro conjI)
-  apply(drule normal_add_imp_normal)
-  apply(erule normal_add_imp_normal)
-  apply(subst (asm) add_mset_commute)
-  apply(erule normal_add_imp_normal)
-  apply(erule normal_add_imp_normal)
   done
 
 
@@ -598,6 +553,52 @@ theorem normal_total: "\<forall>v. \<exists>C. v = val C \<and> normal C"
 
 theorem "\<lbrakk> normal C0; normal C2 \<rbrakk> \<Longrightarrow> \<exists>C1. C1 \<subseteq># C0 \<and> normal (C0 - C1 + C2)"
   oops
+
+
+subsection "Normalize"
+definition normalize1 :: "Coin \<Rightarrow> Coin multiset \<Rightarrow> Coin multiset" where
+  "normalize1 c C \<equiv> case (next_Coin c, redundant_since c) of
+    (Some c', Some n) \<Rightarrow>
+      C - (replicate_mset (count C c) c)
+      + (replicate_mset ((count C c) div n) c')
+      + (replicate_mset ((count C c) mod n) c) |
+    _ \<Rightarrow> C"
+
+
+lemma redundant_since_normnalize1_D: "\<lbrakk> redundant_since c = Some n; C' = normalize1 c C; next_Coin c = Some c' \<rbrakk> \<Longrightarrow>
+    C' = C - (replicate_mset (count C c) c)
+       + (replicate_mset ((count C c) div n) c')
+       + (replicate_mset ((count C c) mod n) c)"
+  apply(unfold normalize1_def)
+  apply(auto)
+  done
+
+
+theorem same_val_size_leI: "\<lbrakk> redundant_since c = Some m; count C c \<ge> m; C' = normalize1 c C \<rbrakk> \<Longrightarrow> val C = val C' \<and> size C' < size C"
+  apply(frule redundant_sinceD)
+  apply(elim exE)
+  apply(frule redundant_since_normnalize1_D)
+  apply(assumption)
+  apply(assumption)
+  apply(erule_tac s=" C - replicate_mset (count C c) c + replicate_mset (count C c div m) c' + replicate_mset (count C c mod m) c" in ssubst)
+  apply(auto simp add: val_plus val_replicate_mset_count)
+  apply(subst val_diff)
+  apply(rule replicate_mset_subseteq)
+  apply(subst val_replicate_mset_count)
+  apply(subst a_eq_a_minus_b_plus_c_plus_d_is_b_eq_c_plus_d)
+  apply(rule count_le_val)
+  apply(rule n_eq_div_plus_mod)
+  apply(force intro: val1_next_Coin)
+  apply(subst size_Diff_submset)
+  apply(rule replicate_mset_subseteq)
+  apply(subst size_replicate_mset)
+  apply(subst a_minus_b_plus_c_plus_d_le_a)
+  apply(rule count_le_size)
+  apply(rule le_div_plus_mod)
+  apply(assumption)
+  apply(case_tac c)
+  apply(auto)
+  done
 
 
 end
