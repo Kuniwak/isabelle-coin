@@ -7,35 +7,7 @@ subsection "nat"
 
 theorem "\<lbrakk> v1 dvd v2; v = v1 * c1 + v2 * c2; c2 \<ge> c2' \<rbrakk> \<Longrightarrow> \<exists>c1'. v = v1 * (c1 + c1') + v2 * (c2 - c2')" for v :: nat
   apply(rule_tac x="(v2 div v1) * c2'" in exI)
-  apply(unfold add_mult_distrib2 diff_mult_distrib2)
-  apply(subst (1) mult.commute)
-  apply(subst mult.assoc[symmetric])
-  apply(subst dvd_mult_div_cancel)
-  apply(assumption)
-  apply(subst diff_add_assoc[symmetric])
-  apply(case_tac "v2 = 0")
-  apply(erule_tac s=0 in ssubst)
-  apply(subst (1 2) mult_0)
-  apply(rule order.refl)
-  apply(subst (asm) le_less)
-  apply(erule disjE)
-  apply(subst le_less)
-  apply(rule disjI1)
-  apply(subst nat_mult_less_cancel1)
-  apply(subst (asm) neq0_conv)
-  apply(assumption)
-  apply(assumption)
-  apply(erule_tac s=c2 in ssubst)
-  apply(rule order.refl)
-  apply(subst add.assoc)
-  apply(subst (2) add.commute)
-  apply(subst add.assoc[symmetric])
-  apply(subst diff_add_assoc)
-  apply(rule order.refl)
-  apply(subst diff_self_eq_0)
-  apply(subst add_0_right)
-  apply(subst mult.commute)
-  apply(assumption)
+  apply(auto simp add: add_mult_distrib2 diff_mult_distrib2)
   done
 
 
@@ -166,6 +138,185 @@ subsection "Coin Definitions"
 datatype Coin = One | Five | Ten | Fifty | Hundred | FiveHundred
 
 
+subsection "Value of Coins"
+type_alias val_unit = nat
+
+
+fun val_yen_unit :: "Coin \<Rightarrow> val_unit" where
+  "val_yen_unit One = 1" |
+  "val_yen_unit Five = 5" |
+  "val_yen_unit Ten = 10" |
+  "val_yen_unit Fifty = 50" |
+  "val_yen_unit Hundred = 100" |
+  "val_yen_unit FiveHundred = 500"
+
+
+theorem inj_val_yen_unit: "inj val_yen_unit"
+  apply(unfold inj_def)
+  apply(intro allI)
+  apply(case_tac x)
+  apply(case_tac y)
+  apply(auto)
+  apply(case_tac y)
+  apply(auto)
+  apply(case_tac y)
+  apply(auto)
+  apply(case_tac y)
+  apply(auto)
+  apply(case_tac y)
+  apply(auto)
+  apply(case_tac y)
+  apply(auto)
+  done
+
+
+theorem range_val_yen_unit: "range val_yen_unit = {1, 5, 10, 50, 100, 500}"
+  apply(subst full_SetCompr_eq[symmetric])
+  apply(auto)
+  apply(case_tac xa)
+  apply(auto)
+  apply(rule_tac x=One in exI)
+  apply(force)
+  apply(rule_tac x=Five in exI)
+  apply(force)
+  apply(rule_tac x=Ten in exI)
+  apply(force)
+  apply(rule_tac x=Fifty in exI)
+  apply(force)
+  apply(rule_tac x=Hundred in exI)
+  apply(force)
+  apply(rule_tac x=FiveHundred in exI)
+  apply(force)
+  done
+
+
+lemma val_yen_unit_gt_0: "val_yen_unit x > 0"
+  apply(case_tac x)
+  apply(auto)
+  done
+
+
+lemma val_yen_unit_eq_0E: "val_yen_unit x = 0 \<Longrightarrow> P"
+  apply(insert val_yen_unit_gt_0)
+  apply(subst (asm) zero_less_iff_neq_zero)
+  apply(drule_tac x=x in meta_spec)
+  apply(erule notE)
+  apply(assumption)
+  done
+
+
+definition val :: "Coin multiset \<Rightarrow> nat" where
+  "val M = sum_mset (image_mset val_yen_unit M)"
+
+
+lemma val_empty: "val {#} = 0"
+  apply(auto simp add: val_def)
+  done
+
+
+lemma val_singleton: "val {#c#} = val_yen_unit c"
+  apply(unfold val_def)
+  apply(auto)
+  done
+
+
+lemma val_add: "val (add_mset x M) = val_yen_unit x + val M"
+  apply(induct M)
+  apply(auto simp add: val_def)
+  done
+
+
+lemma val_plus: "val (A + B) = val A + val B"
+  apply(auto simp add: val_def)
+  done
+
+
+lemma val_diff: "B \<subseteq># A \<Longrightarrow> val (A - B) = val A - val B"
+  apply(auto simp add: val_def)
+  apply(subst image_mset_diff_nat)
+  apply(assumption)
+  apply(rule ordered_cancel_comm_monoid_diff_class.sum_mset_diff)
+  apply(erule image_mset_subseteq_mono)
+  done
+
+
+theorem val_aribitrary: "\<exists>C1 C2. C1 \<noteq> C2 \<and> val C1 = val C2"
+  apply(rule_tac x="{# Five #}" in exI)
+  apply(rule_tac x="{# One, One, One, One, One #}" in exI)
+  apply(auto simp add: val_add)
+  done
+
+
+lemma val_0: "val C = 0 \<longleftrightarrow> C = {#}"
+  apply(case_tac C)
+  apply(auto simp add: val_empty val_add val_yen_unit_gt_0)
+  done
+
+
+lemma val_add_gt_0: "val (add_mset c C) > 0"
+  apply(subst val_add)
+  apply(rule trans_less_add1)
+  apply(rule val_yen_unit_gt_0)
+  done
+
+
+lemma val_gt_0_eq_not_empty: "val C > 0 \<longleftrightarrow> C \<noteq> {#}"
+  apply(rule iffI)
+  apply(case_tac C)
+  apply(clarify)
+  apply(subst (asm) val_empty)
+  apply(subst (asm) less_nat_zero_code)
+  apply(erule FalseE)
+  apply(erule ssubst)
+  apply(subst neq_commute)
+  apply(rule empty_not_add_mset)
+  apply(drule multi_nonempty_split)
+  apply(elim exE)
+  apply(erule ssubst)
+  apply(rule val_add_gt_0)
+  done
+
+
+lemma val_replicate_mset_count: "val (replicate_mset n x) = n * val_yen_unit x"
+  apply(induct n)
+  apply(auto simp add: val_empty val_add)
+  done
+
+
+lemma count_le_val: "count C x * val_yen_unit x \<le> val C"
+  apply(induct C)
+  apply(auto simp add: val_add)
+  done
+
+
+lemma same_val_singleton_size_le[rule_format]: "val {#c#} = val C \<longrightarrow> size {#c#} \<le> size C"
+  apply(case_tac C)
+  apply(erule ssubst)
+  apply(rule impI)
+  apply(subst (asm) val_add)
+  apply(subst (asm) (1 2) val_empty)
+  apply(subst (asm) add_0_right)
+  apply(erule val_yen_unit_eq_0E)
+  apply(case_tac x)
+  apply(auto)
+  done
+
+
+definition dvd_coins :: "val_unit set \<Rightarrow> bool" where
+  "dvd_coins V \<equiv> \<forall>v1 \<in> V. \<forall>v2 \<in> V. v1 < v2 \<longrightarrow> v1 dvd v2"
+
+
+theorem dvd_coins_yen: "dvd_coins (range val_yen_unit)"
+  apply(unfold dvd_coins_def range_val_yen_unit)
+  apply(auto)
+  done
+
+
+
+definition next_Coin :: "Coin \<Rightarrow> Coin \<Rightarrow> bool" where
+  "next_Coin c1 c3 \<equiv> \<nexists>c2. val_unit c1 < val_unit c2 \<and> val_unit c2 < val_unit c3"
+
+
 fun next_Coin :: "Coin \<Rightarrow> Coin option"where
   "next_Coin One = Some Five" |
   "next_Coin Five = Some Ten" |
@@ -204,168 +355,7 @@ lemma all_redundant_since_imp: "(\<forall>c m. redundant_since c = Some m \<long
   done
 
 
-subsection "Value of Coins"
-fun val1 :: "Coin \<Rightarrow> nat" where
-  "val1 One = 1" |
-  "val1 Five = 5" |
-  "val1 Ten = 10" |
-  "val1 Fifty = 50" |
-  "val1 Hundred = 100" |
-  "val1 FiveHundred = 500"
-
-
-theorem inj_val1: "inj val1"
-  apply(unfold inj_def)
-  apply(intro allI)
-  apply(case_tac x)
-  apply(case_tac y)
-  apply(auto)
-  apply(case_tac y)
-  apply(auto)
-  apply(case_tac y)
-  apply(auto)
-  apply(case_tac y)
-  apply(auto)
-  apply(case_tac y)
-  apply(auto)
-  apply(case_tac y)
-  apply(auto)
-  done
-
-
-theorem range_val1: "range val1 = {1, 5, 10, 50, 100, 500}"
-  apply(subst full_SetCompr_eq[symmetric])
-  apply(auto)
-  apply(case_tac xa)
-  apply(auto)
-  apply(rule_tac x=One in exI)
-  apply(force)
-  apply(rule_tac x=Five in exI)
-  apply(force)
-  apply(rule_tac x=Ten in exI)
-  apply(force)
-  apply(rule_tac x=Fifty in exI)
-  apply(force)
-  apply(rule_tac x=Hundred in exI)
-  apply(force)
-  apply(rule_tac x=FiveHundred in exI)
-  apply(force)
-  done
-
-
-lemma val1_gt_0: "val1 x > 0"
-  apply(case_tac x)
-  apply(auto)
-  done
-
-
-lemma val1_eq_0E: "val1 x = 0 \<Longrightarrow> P"
-  apply(insert val1_gt_0)
-  apply(subst (asm) zero_less_iff_neq_zero)
-  apply(drule_tac x=x in meta_spec)
-  apply(erule notE)
-  apply(assumption)
-  done
-
-
-definition val :: "Coin multiset \<Rightarrow> nat" where
-  "val M = sum_mset (image_mset val1 M)"
-
-
-lemma val_empty: "val {#} = 0"
-  apply(auto simp add: val_def)
-  done
-
-
-lemma val_singleton: "val {#c#} = val1 c"
-  apply(unfold val_def)
-  apply(auto)
-  done
-
-
-lemma val_add: "val (add_mset x M) = val1 x + val M"
-  apply(induct M)
-  apply(auto simp add: val_def)
-  done
-
-
-lemma val_plus: "val (A + B) = val A + val B"
-  apply(auto simp add: val_def)
-  done
-
-
-lemma val_diff: "B \<subseteq># A \<Longrightarrow> val (A - B) = val A - val B"
-  apply(auto simp add: val_def)
-  apply(subst image_mset_diff_nat)
-  apply(assumption)
-  apply(rule ordered_cancel_comm_monoid_diff_class.sum_mset_diff)
-  apply(erule image_mset_subseteq_mono)
-  done
-
-
-theorem val_aribitrary: "\<exists>C1 C2. C1 \<noteq> C2 \<and> val C1 = val C2"
-  apply(rule_tac x="{# Five #}" in exI)
-  apply(rule_tac x="{# One, One, One, One, One #}" in exI)
-  apply(auto simp add: val_add)
-  done
-
-
-lemma val_0: "val C = 0 \<longleftrightarrow> C = {#}"
-  apply(case_tac C)
-  apply(auto simp add: val_empty val_add val1_gt_0)
-  done
-
-
-lemma val_add_gt_0: "val (add_mset c C) > 0"
-  apply(subst val_add)
-  apply(rule trans_less_add1)
-  apply(rule val1_gt_0)
-  done
-
-
-lemma val_gt_0_eq_not_empty: "val C > 0 \<longleftrightarrow> C \<noteq> {#}"
-  apply(rule iffI)
-  apply(case_tac C)
-  apply(clarify)
-  apply(subst (asm) val_empty)
-  apply(subst (asm) less_nat_zero_code)
-  apply(erule FalseE)
-  apply(erule ssubst)
-  apply(subst neq_commute)
-  apply(rule empty_not_add_mset)
-  apply(drule multi_nonempty_split)
-  apply(elim exE)
-  apply(erule ssubst)
-  apply(rule val_add_gt_0)
-  done
-
-
-lemma val_replicate_mset_count: "val (replicate_mset n x) = n * val1 x"
-  apply(induct n)
-  apply(auto simp add: val_empty val_add)
-  done
-
-
-lemma count_le_val: "count C x * val1 x \<le> val C"
-  apply(induct C)
-  apply(auto simp add: val_add)
-  done
-
-
-lemma same_val_singleton_size_le[rule_format]: "val {#c#} = val C \<longrightarrow> size {#c#} \<le> size C"
-  apply(case_tac C)
-  apply(erule ssubst)
-  apply(rule impI)
-  apply(subst (asm) val_add)
-  apply(subst (asm) (1 2) val_empty)
-  apply(subst (asm) add_0_right)
-  apply(erule val1_eq_0E)
-  apply(case_tac x)
-  apply(auto)
-  done
-
-
-lemma val1_next_Coin: "\<lbrakk> redundant_since c = Some m; next_Coin c = Some c'\<rbrakk> \<Longrightarrow> val1 c' = m * val1 c"
+lemma val_yen_unit_next_Coin: "\<lbrakk> redundant_since c = Some m; next_Coin c = Some c'\<rbrakk> \<Longrightarrow> val_yen_unit c' = m * val_yen_unit c"
   apply(case_tac c)
   apply(auto)
   done
@@ -525,10 +515,10 @@ lemma not_no_redundant_imp_not_normal[rule_format]: "\<not>no_redundant C \<long
   apply(erule redundant_since_eq_Some_SucD)
   apply(assumption)
   apply(subst val_replicate_mset_count)
-  apply(drule_tac val1_next_Coin)
+  apply(drule_tac val_yen_unit_next_Coin)
   apply(assumption)
   apply(subst val_singleton)
-  apply(erule_tac t="val1 c'" in ssubst)
+  apply(erule_tac t="val_yen_unit c'" in ssubst)
   apply(subst mult_Suc)
   apply(subst diff_add_inverse2)
   apply(rule refl)
@@ -624,7 +614,7 @@ theorem same_val_size_leI: "\<lbrakk> redundant_since c = Some m; count C c \<ge
   apply(subst a_eq_a_minus_b_plus_c_plus_d_is_b_eq_c_plus_d)
   apply(rule count_le_val)
   apply(rule n_eq_div_plus_mod)
-  apply(force intro: val1_next_Coin)
+  apply(force intro: val_yen_unit_next_Coin)
   apply(subst size_Diff_submset)
   apply(rule replicate_mset_subseteq)
   apply(subst size_replicate_mset)
