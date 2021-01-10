@@ -1,4 +1,4 @@
-theory CoinClass imports "~~/src/HOL/Library/Multiset" begin
+theory CoinClass imports "RmMultiset" begin
 
 
 type_alias val = nat
