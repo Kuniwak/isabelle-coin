@@ -1,4 +1,4 @@
-theory CoinClass imports "RmMultiset" begin
+theory CoinClass imports "RmMultiset" "ReplicateMultiset" begin
 
 type_alias val = nat
 
@@ -56,6 +56,8 @@ lemma surj_val': "\<exists>C. v = val C"
 
 theorem surj_val: "surj val"
   by (auto simp add: surj_def intro: surj_val')
+
+
 
 end
 end
