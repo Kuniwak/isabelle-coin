@@ -4,32 +4,38 @@ theory CoinClass imports "RmMultiset" begin
 type_alias val = nat
 
 
-class coins = linorder +
+class coins = linorder + complete_lattice +
   fixes val_unit :: "'a \<Rightarrow> val"
-  assumes inj_val_unit: "inj val_unit"
-  assumes mono_val_unit: "mono val_unit"
-  assumes val_unit_gt_0: "\<forall>v \<in> range val_unit. v > 0"
-  assumes val_unit_1: "1 \<in> range val_unit"
+  assumes strict_mono_val_unit: "strict_mono val_unit"
+  assumes val_unit_bot_1: "val_unit bot = 1"
   assumes dvd_val_units[rule_format]: "\<forall>v1 \<in> range val_unit. \<forall>v2 \<in> range val_unit. v1 < v2 \<longrightarrow> v1 dvd v2"
 begin
 
 
-theorem val_unit_1_ex: "\<exists>c. val_unit c = 1"
-  apply(insert val_unit_1)
-  apply(subst (asm) range_ex1_eq)
-  apply(rule inj_val_unit)
-  apply(clarify)
-  apply(erule ssubst)
-  apply(rule_tac x=x in exI)
-  apply(rule refl)
+theorem val_unit_gt_0: "val_unit c > 0"
+  apply(insert strict_mono_val_unit)
+  apply(drule strict_mono_mono)
+  apply(unfold mono_def)
+  apply(drule_tac x=bot in spec)
+  apply(drule_tac x=c in spec)
+  apply(drule mp)
+  apply(rule bot_least)
+  apply(subst (asm) val_unit_bot_1)
+  apply(simp)
   done
 
 
-theorem all_coin_val_gt_0: "\<forall>c. val_unit c > 0"
-  apply(insert val_unit_gt_0)
-  apply(rule allI)
-  apply(erule_tac x="val_unit c" in bspec)
-  apply(rule rangeI)
+theorem inj_val_unit: "inj val_unit"
+  apply(unfold inj_def)
+  apply(intro allI)
+  apply(insert strict_mono_eq)
+  apply(drule_tac x=val_unit in meta_spec)
+  apply(drule_tac x=x in meta_spec)
+  apply(drule_tac x=y in meta_spec)
+  apply(drule meta_mp)
+  apply(rule strict_mono_val_unit)
+  apply(erule ssubst)
+  apply(rule imp_refl)
   done
 
 
@@ -46,20 +52,22 @@ lemma val_gt_0_eq_not_empty: "val C > 0 \<longleftrightarrow> C \<noteq> {#}"
 
 
 lemma val_add_mset: "val (add_mset c C) = val_unit c + val C"
-  by (auto simp add: val_def)
+  by (simp add: val_def)
 
 
 lemma surj_val': "\<exists>C. v = val C"
   apply(induct v)
-  apply(insert val_unit_1_ex)
+  apply(insert val_unit_bot_1)
   apply(auto intro: val_empty)
-  apply(rule_tac x="add_mset c C" in exI)
-  apply(auto simp add: val_add_mset)
+  apply(rule_tac x="add_mset bot C" in exI)
+  apply(simp add: val_add_mset)
   done
 
 
 theorem surj_val: "surj val"
   by (auto simp add: surj_def intro: surj_val')
+
+
 
 
 end
