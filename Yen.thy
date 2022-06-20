@@ -21,13 +21,13 @@ definition val_unit_Yen: "val_unit_Yen \<equiv> Yen_unit"
 lemma inj_val_unit_Yen: "inj Yen_unit"
   apply(unfold inj_def)
   apply(intro allI)
-  apply(rule_tac y=x in Yen.exhaust; auto)
-  apply(rule_tac y=y in Yen.exhaust; auto)
-  apply(rule_tac y=y in Yen.exhaust; auto)
-  apply(rule_tac y=y in Yen.exhaust; auto)
-  apply(rule_tac y=y in Yen.exhaust; auto)
-  apply(rule_tac y=y in Yen.exhaust; auto)
-  apply(rule_tac y=y in Yen.exhaust; auto)
+  apply(case_tac x; auto)
+  apply(case_tac y; auto)
+  apply(case_tac y; auto)
+  apply(case_tac y; auto)
+  apply(case_tac y; auto)
+  apply(case_tac y; auto)
+  apply(case_tac y; auto)
   done
 
 
@@ -43,6 +43,11 @@ lemma dvd_val_units_Yen: "\<forall>c1 c2. Yen_unit c1 < Yen_unit c2 \<longrighta
 
 
 instance
-  by standard (auto simp add: val_unit_Yen inj_val_unit_Yen dvd_val_units_Yen)
+  apply(standard)
+  apply(auto simp add: val_unit_Yen inj_val_unit_Yen dvd_val_units_Yen)
+  apply(case_tac "x")
+  apply(auto)
+  done
+
 end
 end
