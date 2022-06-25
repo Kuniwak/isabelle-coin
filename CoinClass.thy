@@ -2,15 +2,18 @@ theory CoinClass imports "~~/src/HOL/Library/Multiset" begin
 
 type_alias val = nat
 
-
 locale coin =
   fixes val_unit :: "'a \<Rightarrow> val"
-  fixes coin1 :: 'a
-  assumes finite_coins: "finite (UNIV :: 'a set)"
-  assumes val_unit_coin1: "val_unit coin1 = 1"
-  assumes inj_val_unit: "inj val_unit"
-  assumes val_unit_gt_0: "\<And>v. v \<in> range val_unit \<Longrightarrow> v > 0"
-  assumes dvd_val_units: "\<And>v1 v2. \<lbrakk> v1 \<in> range val_unit; v2 \<in> range val_unit; v1 < v2 \<rbrakk> \<Longrightarrow> v1 dvd v2"
+    and coin1 :: 'a
+    and less_eq :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
+    and less :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
+  assumes less_eq_def: "less_eq x y \<longleftrightarrow> val_unit x \<le> val_unit y"
+    and less_def: "less x y \<longleftrightarrow> val_unit x < val_unit y"
+    and finite_coins: "finite (UNIV :: 'a set)"
+    and val_unit_coin1: "val_unit coin1 = 1"
+    and inj_val_unit: "inj val_unit"
+    and val_unit_gt_0: "\<And>v. v \<in> range val_unit \<Longrightarrow> v > 0"
+    and dvd_val_units: "\<And>v1 v2. \<lbrakk> v1 \<in> range val_unit; v2 \<in> range val_unit; v1 < v2 \<rbrakk> \<Longrightarrow> v1 dvd v2"
 begin
 
 lemma val_unit_neq_0: "val_unit c \<noteq> 0"
@@ -129,20 +132,11 @@ lemma "\<lbrakk> v1 * c1 + v2 * c2 = v1 * c1' + v2 * c2' \<rbrakk> \<Longrightar
 lemma "\<lbrakk> v1 dvd v2; c2 \<ge> c2' \<rbrakk> \<Longrightarrow> \<nexists>c1' c2'. v1 * c1 + v2 * c2 = v1 * (c1 + c1') + v2 * (c2 - c2')"
   oops
 
-end
-
-locale coin_linorder = coin +
-  fixes less_eq :: "'a \<Rightarrow> 'a \<Rightarrow> bool" (infix "\<le>c" 50)
-    and less :: "'a \<Rightarrow> 'a \<Rightarrow> bool" (infix "<c" 50)
-  assumes less_eq_def: "x \<le>c y \<longleftrightarrow> val_unit x \<le> val_unit y"
-    and less_def: "x <c y \<longleftrightarrow> val_unit x < val_unit y"
-begin
-
-sublocale ordering less_eq less
+sublocale linorder less_eq less
 unfolding less_eq_def less_def proof
-  fix a b
-  have 1: "a \<noteq> b \<longleftrightarrow> val_unit a \<noteq> val_unit b" using inj_val_unit by (simp add: inj_eq)
-  thus "(val_unit a < val_unit b) = (val_unit a \<le> val_unit b \<and> a \<noteq> b)" unfolding 1 by auto
+  fix x y
+  have 1: "x \<noteq> y \<longleftrightarrow> val_unit x \<noteq> val_unit y" using inj_val_unit by (simp add: inj_eq)
+  thus "(val_unit x < val_unit y) = (val_unit x \<le> val_unit y \<and> \<not> val_unit y \<le> val_unit x)" unfolding 1 by auto
 next
   fix a
   show "val_unit a \<le> val_unit a" by simp
@@ -157,6 +151,9 @@ next
   assume 1: "val_unit a \<le> val_unit b"
     and 2: "val_unit b \<le> val_unit c"
   thus "val_unit a \<le> val_unit c" by simp
+next
+  fix x y
+  show "val_unit x \<le> val_unit y \<or> val_unit y \<le> val_unit x" by fastforce
 qed
 end
 

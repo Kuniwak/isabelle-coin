@@ -27,7 +27,7 @@ definition less_eq_Yen :: "Yen \<Rightarrow> Yen \<Rightarrow> bool"
 definition less_Yen :: "Yen \<Rightarrow> Yen \<Rightarrow> bool"
   where "less_Yen y1 y2 \<equiv> Yen_unit y1 < Yen_unit y2"
 
-interpretation Yen: coin_linorder Yen_unit One less_eq_Yen less_Yen
+interpretation Yen: coin Yen_unit One less_eq_Yen less_Yen
 proof
   show "finite (UNIV::Yen set)"
   unfolding Yen_UNIV_eq by simp
