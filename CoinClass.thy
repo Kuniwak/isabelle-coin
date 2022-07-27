@@ -32,21 +32,132 @@ proof -
   qed
 qed
 
-locale wellorder_finite = finite + wellorder + order_bot
+context linorder
 begin
+lemma infinite_growing2:
+  assumes "X \<noteq> {}"
+  assumes *: "\<And>x. x \<in> X \<Longrightarrow> \<exists>y\<in>X. y < x"
+  shows "\<not> finite X"
+proof
+  assume "finite X"
+  with \<open>X \<noteq> {}\<close> have "Min X \<in> X" "\<forall>x\<in>X. Min X \<le> x"
+    by auto
+  with *[of "Min X"] show False
+    by auto
+qed
+end
+
+locale dual_wellorder_finite = wellorder + finite +
+  assumes greater_induct[case_names greater]: "\<And>z. (\<And>x. (\<And>y. less x y \<Longrightarrow> P y) \<Longrightarrow> P x) \<Longrightarrow> P z"
+begin
+
+definition is_bot :: "'a \<Rightarrow> bool"
+  where "is_bot a \<equiv> \<forall>b. less_eq a b"
+
+lemma bot_uniq:
+  assumes "is_bot a"
+    and "is_bot b"
+  shows "a = b"
+unfolding is_bot_def using antisym assms is_bot_def by force
+
+lemma ex_bot:
+  obtains bot where "is_bot bot"
+  unfolding is_bot_def by (metis dual_order.order_iff_strict dual_order.trans le_less_linear less_induct)
+
+lemma ex1_bot:
+  shows "\<exists>!x. is_bot x"
+  using ex_bot bot_uniq by metis
+
+definition bot :: 'a
+  where "bot \<equiv> (The is_bot)"
+
+sublocale order_bot bot less_eq less
+unfolding bot_def proof standard
+  fix a
+  show "less_eq (The is_bot) a" by (metis ex1_bot is_bot_def the_equality)
+qed
+
+definition is_top :: "'a \<Rightarrow> bool"
+  where "is_top a \<equiv> \<forall>b. less_eq b a"
+
+lemma top_uniq:
+  assumes "is_top a"
+    and "is_top b"
+  shows "a = b"
+using assms unfolding is_top_def using local.antisym by force
+
+lemma ex_top:
+  obtains top where "is_top top"
+  unfolding is_top_def using greater_induct by (metis not_le_imp_less that)
+
+lemma ex1_top:
+  shows "\<exists>!x. is_top x" using top_uniq ex_top by metis
+
+definition top :: 'a
+  where "top \<equiv> (The is_top)"
+
+sublocale order_top less_eq less top
+unfolding top_def proof standard
+  fix a
+  show "less_eq a (The is_top)" by (metis ex1_top is_top_def the_equality)
+qed
 
 definition suc :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
   where "suc a b \<equiv> less a b \<and> (\<nexists>c. less a c \<and> less c b)"
+
+lemma suc_uniq1:
+  assumes "suc a b"
+    and "suc c b"
+  shows "a = c"
+using assms unfolding suc_def by (meson antisym_conv3)
+
+lemma suc_uniq2:
+  assumes "suc a b"
+    and "suc a c"
+  shows "b = c"
+using assms unfolding suc_def by (meson antisym_conv3)
+
+lemma neq_topE:
+  assumes "a \<noteq> top"
+  obtains b where "less a b" and "\<nexists>x. less a x \<and> less x b"
+proof (induct rule: greater_induct)
+  case (greater x)
+  thus ?case by (metis assms empty_iff less_top finite infinite_growing2 greaterThan_iff that)
+qed
+
+lemma ex1_prev:
+  assumes "a \<noteq> top"
+  obtains b where "suc a b" and "\<And>c. suc a c \<Longrightarrow> c = b"
+using assms proof (rule neq_topE)
+  fix c
+  assume 1: "\<And>b. \<lbrakk> suc a b; \<And>c. suc a c \<Longrightarrow> c = b \<rbrakk> \<Longrightarrow> thesis"
+    and 2: "less a c" "\<nexists>x. less a x \<and> less x c"
+  have 3: "suc a c" using 2 unfolding suc_def by simp
+  have 4: "\<And>b. suc a b \<Longrightarrow> b = c" using 3 suc_uniq2 by blast
+  show thesis using 1 3 4 .
+qed
 
 lemma neq_botE:
   assumes "a \<noteq> bot"
   obtains b where "less b a" and "\<nexists>x. less b x \<and> less x a"
 proof (induct rule: less_induct)
   case (less x)
-  then show ?case by (metis assms empty_iff bot_less finite infinite_growing lessThan_iff that)
+  thus ?case by (metis assms empty_iff bot_less finite infinite_growing lessThan_iff that)
 qed
 
-lemma
+lemma ex1_suc:
+  assumes "a \<noteq> bot"
+  obtains b where "suc b a" and "\<And>c. suc c a \<Longrightarrow> c = b"
+using assms proof (rule neq_botE)
+  fix b
+  assume 1: "\<And>b. \<lbrakk>suc b a; \<And>c. suc c a \<Longrightarrow> c = b\<rbrakk> \<Longrightarrow> thesis"
+    and 2: "less b a" "\<nexists>x. less b x \<and> less x a"
+  have 3: "suc b a" unfolding suc_def using 2 by blast
+  have 4: "\<And>c. suc c a \<Longrightarrow> c = b" using 3 suc_uniq1 by blast
+  show ?thesis using 1 3 4 .
+qed                                                    
+
+theorem transfinite_induct:
   assumes base: "P bot"
     and step: "\<And>x y. \<lbrakk> P x; suc x y \<rbrakk> \<Longrightarrow> P y"
   shows "P x"
@@ -64,89 +175,35 @@ proof (induct x rule: less_induct)
     show ?thesis using step P suc .
   qed
 qed
-end
 
-locale ordering_bot = ordering +
-  fixes bot :: 'a ("\<bottom>")
-  assumes extremum[simp]: "\<And>x. less_eq bot x"
-
-locale semilattice_bot = semilattice_order_set + ordering_bot
-begin
-
-lemma finite_induct1_max:
-  fixes P :: "'a set \<Rightarrow> bool"
-  assumes finite: "finite X"
-    and bot_mem: "x \<in> X"
-    and base: "P {x}"
-    and extra: "Q X"
-    and extra_step: "\<And>X x'. Q (insert x' X) \<Longrightarrow> Q X"
-    and step: "\<And>X x'. \<lbrakk> finite X; P X; x' \<notin> X; x \<in> X; Q X\<rbrakk> \<Longrightarrow> P (insert x' X)"
-  shows "P X"
-using finite bot_mem extra proof (induct rule: finite_induct1)
-  show "x \<in> X" using bot_mem .
-next
-  show "P {x}" using base .
-next
-  fix X' :: "'a set" and x'
-  assume finite': "finite X'"
-    and imp_P_x: "\<lbrakk> x \<in> X'; Q X'\<rbrakk> \<Longrightarrow> P X'"
-    and nmem': "x' \<notin> X'"
-    and bot_mem_insert: "x \<in> insert x' X'"
-    and Q_insert: "Q (insert x' X')"
-  have Q_x': "Q X'" using extra_step Q_insert .
-  have "x = x' \<or> x \<in> X'" using bot_mem_insert by simp
-  thus "P (insert x' X')" proof
-    assume 1: "x \<in> X'"
-    have P_x': "P X'" using imp_P_x 1 Q_x' .
-    show "P (insert x' X')" using step finite' P_x' nmem' 1 Q_x' .
+theorem transfinite_induct_reverse:
+  assumes base: "P top"
+    and step: "\<And>x y. \<lbrakk> P x; suc y x \<rbrakk> \<Longrightarrow> P y"
+  shows "P x"
+proof (induct x rule: greater_induct)
+  case (greater x)
+  assume less_step: "\<And>y. less x y \<Longrightarrow> P y"
+  show ?case proof (cases "x = top")
+    case True
+    show ?thesis unfolding True by (rule base)
   next
-    assume x_eq: "x = x'"
-    show "P (insert x' X')"
-    using finite' Q_x' Q_insert proof (induct rule: finite_induct)
-      case empty
-      show ?case using base unfolding x_eq .
-    next
-      case (insert x'' X'')
-      assume finite'': "finite X''"
-        and nmem'': "x'' \<notin> X''"
-        and imp_P_insert'_'': "\<lbrakk> Q X''; Q (insert x' X'') \<rbrakk> \<Longrightarrow> P (insert x' X'')"
-        and Q_insert''_'': "Q (insert x'' X'')"
-      have Q_x'': "Q X''" using extra_step Q_insert''_'' .
-      show ?case
-      using step[where ?X="insert x' X''" and ?x'=x''] proof (subst insert_commute)
-        assume 2: "\<lbrakk>finite (insert x' X''); P (insert x' X''); x'' \<notin> insert x' X''; x \<in> insert x' X''; Q (insert x' X'')\<rbrakk>
-     \<Longrightarrow> P (insert x'' (insert x' X''))"
-        show "P (insert x'' (insert x' X''))" proof (cases "x'' = x")
-          case True
-          have P_insert'_'': "P (insert x' X'')" using imp_P_insert'_'' Q_x'' Q_insert''_'' unfolding x_eq True .
-          show ?thesis using P_insert'_'' unfolding x_eq True by simp
-        next
-          case False
-          show ?thesis
-          proof (rule 2)
-            show "finite (insert x' X'')" using finite'' by simp
-          next
-            show "P (insert x' X'')" by (metis extra_step imp_P_insert'_'' insert.prems(2) insert_commute)
-          next
-            show "x'' \<notin> insert x' X''" using nmem'' False unfolding x_eq by simp
-          next
-            show "x \<in> insert x' X''" unfolding x_eq by simp
-          next
-            show "Q (insert x' X'')" by (metis extra_step insert.prems(2) insert_commute)
-          qed
-        qed
-      qed
-    qed
+    case False
+    then obtain y where less: "less x y" and nex: "\<nexists>z. less x z \<and> less z y" using neq_topE by blast
+    have P: "P y" using less by (rule less_step)
+    have suc: "suc x y" unfolding suc_def using less nex by simp
+    show ?thesis using step P suc .
   qed
 qed
 end
 
-locale coin = wellorder_finite +
+locale coin = finite +
   fixes val_unit :: "'a \<Rightarrow> val"
-  assumes val_unit_coin1[simp]: "val_unit bot = 1"
+    and coin1 :: 'a
+  assumes val_unit_coin1[simp]: "val_unit coin1 = 1"
     and inj_val_unit: "inj val_unit"
     and val_unit_gt_0: "\<And>v. v \<in> range val_unit \<Longrightarrow> v > 0"
     and dvd_val_units: "\<And>v1 v2. \<lbrakk> v1 \<in> range val_unit; v2 \<in> range val_unit; v1 < v2 \<rbrakk> \<Longrightarrow> v1 dvd v2"
+    and greater_induct: "(\<And>x. (\<And>y. val_unit x < val_unit y \<Longrightarrow> P y) \<Longrightarrow> P x) \<Longrightarrow> P x" (* \<leftarrow> FIXME *)
 begin
 
 definition less_eq_coin :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
@@ -155,7 +212,7 @@ definition less_eq_coin :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
 definition less_coin :: "'a \<Rightarrow> 'a \<Rightarrow> bool"
   where "less_coin x y \<longleftrightarrow> val_unit x < val_unit y"
 
-sublocale wellorder less_eq_coin less_coin
+sublocale dual_wellorder_finite less_eq_coin less_coin
 unfolding less_eq_coin_def less_coin_def proof
   fix x y
   have 1: "x \<noteq> y \<longleftrightarrow> val_unit x \<noteq> val_unit y" using inj_val_unit by (simp add: inj_eq)
@@ -180,139 +237,33 @@ next
   fix P a
   assume step: "(\<And>x. (\<And>y. val_unit y < val_unit x \<Longrightarrow> P y) \<Longrightarrow> P x)"
   thus "P a" by (rule measure_induct_rule[where ?f=val_unit]; metis)
-qed
-
-definition next_coin_on :: "'a set \<Rightarrow> 'a rel"
-  where "next_coin_on C \<equiv> { (c, c') | c c'. c \<in> C \<and> c' \<in> C \<and> less_coin c c' \<and> (\<nexists>c''. c'' \<in> C \<and> less_coin c c'' \<and> less_coin c'' c')}"
-
-theorem next_coin_on_emptyE:
-  assumes "p \<in> next_coin_on {}"
-  shows "P"
-using assms unfolding next_coin_on_def by simp
-
-theorem next_coin_on_singletonE:
-  assumes "p \<in> next_coin_on {c0}"
-  shows "P"
-using assms unfolding next_coin_on_def by clarsimp
-
-theorem id_nmem_next_coin_on: "(c, c) \<notin> next_coin_on C"
-  unfolding next_coin_on_def by simp
-
-theorem coin1_nmem_next_coin_on: "(c, bot) \<notin> next_coin_on C"
-unfolding next_coin_on_def proof auto
-  assume less: "less_coin c bot"
-  have not_less: "\<not>less_coin c bot" using val_unit_gt_0 unfolding less_coin_def val_unit_coin1 by auto
-  show "\<exists>c''. less_coin c c'' \<and> c'' \<in> C \<and> less_coin c'' bot " using less not_less by simp
-qed
-
-theorem wf_next_coin_on:
-  shows "wf (next_coin_on X)"
-unfolding wf_def proof 
-
-
-theorem next_coin_on_uniq:
-  assumes "(c1, c2) \<in> next_coin_on C"
-    and "(c1, c3) \<in> next_coin_on C"
-  shows "c2 = c3"
-using assms unfolding next_coin_on_def by fastforce
-
-
-abbreviation next_coin :: "'a rel"
-  where "next_coin \<equiv> next_coin_on UNIV"
-
-theorem
-  fixes c :: 'a
-  assumes mem: "c \<in> X"
-    and Min: "c = Min X"
-  shows "(\<nexists>c'. (c, c') \<in> next_coin_on X) \<longleftrightarrow> c = Max X"
-using finite[where ?A=X] mem proof (induct rule: finite_induct1_max[where ?x=c])
-  case mem
-  show "c \<in> X" using assms(1) .
 next
-  case Min
-  show "c = Min X" using assms(2) .
-next
-  case singleton
-  show ?case proof
-next
-  case (insert X x')
-  have "\<And>c' X c. \<lbrakk> \<nexists>a. next_coin_on (insert c' X) c a; c' \<notin> X \<rbrakk> \<Longrightarrow> (\<nexists>a. next_coin_on X c a)"
-    unfolding next_coin_on_def by (metis (full_types) insert_iff local.dual_order.strict_trans local.less_irrefl)
-  hence 1: "\<nexists>c'. next_coin_on X c c'" using insert.prems(2) insert.hyps(3) .
-  have "c = local.Max X" using insert.hyps(2) using insert.hyps(4) 1 .
-  thus "c = local.Max (insert x' X)" 
+  fix P z
+  assume step: "(\<And>x. (\<And>y. val_unit x < val_unit y \<Longrightarrow> P y) \<Longrightarrow> P x)"
+  show "P z" using greater_induct step .
 qed
-
-
-theorem Min_UNIV: "local.Min UNIV = coin1"
-  by (metis UNIV_I finite image_eqI less_eq_coin_def less_one linorder_class.not_le local.Min.coboundedI local.antisym val_unit_coin1 val_unit_gt_0)
-
-
-theorem next_coin_on_eq_None: 
-  assumes "c \<in> X"
-  shows "next_coin_on X c = None \<longleftrightarrow> c = local.Max X"
-proof
-  assume "next_coin_on X c = None"
-  hence 1: "\<And>c'. c' \<in> X \<Longrightarrow> less_eq_coin c' c" using less_eq_coin_def next_coin_on2 by presburger
-  show "c = Max X" using finite[where ?A=X] 1 proof (induct rule: finite_induct1[where ?x=c])
-    case mem
-    thus "c \<in> X" using assms by simp
-  next
-    case singleton
-    thus ?case by simp
-  next
-    case (insert X x')
-    then show ?case by (metis empty_not_insert insertCI local.Max.coboundedI local.Max_in local.antisym local.finite)
-  qed
-next
-  assume "c = Max X"
-  thus "next_coin_on X c = None"
-    by (metis less_eq_coin_def linorder_class.not_le local.Max.coboundedI local.finite next_coin_on1 not_None_eq)
-qed
-
-theorem next_coin_eq_None: "next_coin c = None \<longleftrightarrow> c = local.Max UNIV"
-proof
-  assume "next_coin c = None"
-  hence "\<And>c'. less_eq_coin c' c" by (simp add: next_coin2)
-  thus "c = local.Max UNIV" by (simp add: local.antisym)
-next
-  assume 1: "c = local.Max UNIV"
-  show "next_coin c = None"
-  proof (cases "next_coin c")
-    case None
-    then show ?thesis by simp
-  next
-    case (Some a)
-    hence "less_coin c a" using next_coin1 by (simp add: less_coin_def)
-    then show ?thesis using 1 using finite by auto
-  qed
-qed
-
-
-lemma next_coin_neq_Some_coin1: "next_coin c \<noteq> Some coin1"
-  by (metis less_one linorder_class.not_less next_coin_def next_coin_on1 preorder_class.order_refl rangeI val_unit_coin1 val_unit_gt_0)
-
-lemma disj_next_coin_on:
-  assumes "x \<in> X"
-  shows "(\<exists>x'. x' \<in> X \<and> next_coin_on X x = Some x') \<or> next_coin_on X x = None"
-  using next_coin_on1 by blast
 
 lemma val_unit_neq_0: "val_unit c \<noteq> 0"
   by (simp add: val_unit_gt_0)
 
-lemma val_unit_eq_1_is_coin1:
+lemma val_unit_eq_1_is_bot:
   assumes "val_unit c = 1"
   shows "c = coin1"
 using assms inj_val_unit val_unit_coin1 by (metis inj_eq)
 
-lemma neq_coin1_implies_val_unit_gt_1:
+lemma bot_eq[simp]: "coin1 = bot"
+  by (metis less_eq_coin_def less_one linorder_class.not_less bot_least order_class.le_imp_less_or_eq rangeI val_unit_coin1 val_unit_eq_1_is_bot val_unit_gt_0)
+
+lemma val_unit_bot[simp]: "val_unit bot = 1"
+  unfolding bot_eq[symmetric] val_unit_coin1 by (rule refl) 
+
+lemma neq_bot_implies_val_unit_gt_1:
   assumes "c \<noteq> coin1"
   shows "val_unit c > 1"
 proof -
   have "\<nexists>c. val_unit c = 0" using val_unit_gt_0 by simp
-  thus "val_unit c > 1" using assms val_unit_eq_1_is_coin1 by (meson less_one nat_neq_iff)
+  thus "val_unit c > 1" using assms val_unit_eq_1_is_bot by (meson less_one nat_neq_iff)
 qed
-
 
 definition val :: "'a multiset \<Rightarrow> val" where
   "val C \<equiv> sum_mset (image_mset val_unit C)"
@@ -354,16 +305,15 @@ using assms proof (rule contrapos_pp)
   thus "val C \<noteq> 0" by simp
 qed
   
-
 lemma val_gt_0_eq_not_empty: "val C > 0 \<longleftrightarrow> C \<noteq> {#}"
   using val_mempty val_eq_0D by auto
 
-lemma val_only_coin1: "val {#coin1#} = 1"
-  by (simp add: val_def)
+lemma val_only_bot: "val {#bot#} = 1"
+  by (simp add: val_def )
 
-lemma val_eq_1_is_only_one_coin1:
+lemma val_eq_1_is_only_one_bot:
   assumes "val C = 1"
-  shows "C = {# coin1 #}"
+  shows "C = {# bot #}"
 proof -
   have "C \<noteq> {#}" using assms val_mempty by auto
   then obtain c C' where C_eq: "C = add_mset c C'" by (meson multiset_cases)
@@ -371,9 +321,9 @@ proof -
   hence "1 = val_unit c + val C'" using assms by simp
   hence "val_unit c = 0 \<and> val C' = 1 \<or> val_unit c = 1 \<and> val C' = 0" by auto
   hence 1: "val_unit c = 1" and 2: "val C' = 0" by (auto simp add: val_unit_neq_0)
-  have 3:"c = coin1" using 1 val_unit_eq_1_is_coin1 by simp
+  have 3:"c = bot" using 1 val_unit_eq_1_is_bot by simp
   have 4: "C' = {#}" using 2 val_eq_0D by simp
-  show "C = {#coin1#}" using 3 4 C_eq by simp
+  show "C = {#bot#}" using 3 4 C_eq by simp
 qed
 
 theorem val_eqE:
@@ -381,14 +331,14 @@ theorem val_eqE:
   obtains C where "val C = v"
 proof -
   assume 1: "\<And>C. val C = v \<Longrightarrow> thesis"
-  have "val (replicate_mset v coin1) = v"
+  have "val (replicate_mset v bot) = v"
   proof (induct v)
     case 0
-    thus "val (replicate_mset 0 coin1) = 0" using val_mempty by simp
+    thus "val (replicate_mset 0 bot) = 0" using val_mempty by simp
   next
     case (Suc v)
     note step = Suc
-    thus "val (replicate_mset (Suc v) coin1) = Suc v" unfolding replicate_mset_Suc val_add_mset val_unit_coin1 step by simp
+    thus "val (replicate_mset (Suc v) bot) = Suc v" unfolding replicate_mset_Suc val_add_mset val_unit_bot step by simp
   qed
   thus thesis using 1 by simp
 qed
@@ -414,54 +364,53 @@ proof -
   assume 1: "\<And>C. \<lbrakk>v = val C; normal_form C\<rbrakk> \<Longrightarrow> thesis"
   show thesis oops
 
-definition normalize :: "val \<Rightarrow> 'a multiset"
-  where "normalize v \<equiv> sum
+definition normalize_on :: "'a set \<Rightarrow> val \<Rightarrow> 'a multiset"
+  where "normalize_on C v \<equiv> sum
   (\<lambda>c. replicate_mset (
-    case next_coin c of
-      None \<Rightarrow> v div (val_unit c) |
-      Some c' \<Rightarrow> (v mod (val_unit c')) div (val_unit c)
-  ) c) (UNIV :: 'a set)"
+    if c = Max C
+    then v div (val_unit c)
+    else (v mod (val_unit (The (suc c)))) div (val_unit c)
+  ) c) C"
+
+abbreviation normalize :: "val \<Rightarrow> 'a multiset"
+  where "normalize \<equiv> normalize_on UNIV"
 
 lemma normalize_0: "normalize 0 = {#}"
-unfolding normalize_def proof -
+unfolding normalize_on_def proof -
   have 1: "\<And>c. 0 div val_unit c = 0" by simp
   have 2: "\<And>c c'. 0 mod val_unit c' div val_unit c = 0" by simp
-  have 3: "\<And>c. (case next_coin c of None \<Rightarrow> 0 | _ \<Rightarrow> 0) = 0" by (simp add: option.case_eq_if)
-  show "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> 0 div val_unit c | Some c' \<Rightarrow> 0 mod val_unit c' div val_unit c) c) UNIV = {#}"
+  have 3: "\<And>c. (if c = top then 0 div val_unit c else 0 mod val_unit (The (suc c)) div val_unit c) = 0" by (simp add: option.case_eq_if)
+  show "sum (\<lambda>c. replicate_mset (if c = local.Max UNIV then 0 div val_unit c else 0 mod val_unit (The (suc c)) div val_unit c) c) UNIV = {#}"
   unfolding 1 2 3 by simp
 qed
 
 lemma normalize_val_unit: "normalize (val_unit c) = {# c #}"
-unfolding normalize_def proof -
-  have 1: "\<And>c'. next_coin c' = None \<Longrightarrow> val_unit c div val_unit c' = (if c = c' then 1 else 0)"
+unfolding normalize_on_def proof -
+  have 1: "val_unit c div val_unit (Max UNIV) = (if c = Max UNIV then 1 else 0)"
   proof auto
-    assume "next_coin c = None"
-    hence "c = local.Max UNIV" using next_coin_eq_None by blast
-    have "val_unit c \<noteq> 0" using val_unit_gt_0 by auto
-    thus "val_unit c div val_unit c = Suc 0" by simp
+    assume "c = Max UNIV"
+    have "val_unit (Max UNIV) \<noteq> 0" using val_unit_gt_0 by auto
+    thus "val_unit (Max UNIV) div val_unit (Max UNIV) = Suc 0" by simp
   next
-    fix c'
-    assume "next_coin c' = None" and neq: "c \<noteq> c'"
-    hence c'_eq: "c' = local.Max UNIV" using next_coin_eq_None by blast
-    hence "less_coin c (local.Max UNIV)"
-      by (metis UNIV_I finite local.Max.coboundedI local.antisym local.not_le neq)
-    thus "val_unit c div val_unit c' = 0" unfolding c'_eq less_coin_def by simp
+    assume "c \<noteq> Max UNIV"
+    hence "less_coin c (Max UNIV)" using top.not_eq_extremum by (meson UNIV_I local.Max.coboundedI local.antisym_conv2 local.finite)
+    thus "val_unit c div val_unit (Max UNIV) = 0" unfolding less_coin_def by simp
   qed
-  have 2: "\<And>c' c''. next_coin c' = Some c'' \<Longrightarrow> val_unit c mod val_unit c'' div val_unit c' = (if c = c' then 1 else 0)"
+  have 2: "\<And>c' c''. suc c' c'' \<Longrightarrow> val_unit c mod val_unit c'' div val_unit c' = (if c = c' then 1 else 0)"
   proof auto
     fix c2
-    assume "next_coin c = Some c2"
-    hence "less_coin c c2" using next_coin1 by blast
+    assume "suc c c2"
+    hence "less_coin c c2" unfolding suc_def by blast
     hence "val_unit c mod val_unit c2 = val_unit c" unfolding less_coin_def by simp
     thus "val_unit c mod val_unit c2 div val_unit c = Suc 0" using val_unit_neq_0[where ?c=c] by simp
   next
     fix c1 c2
-    assume 1: "next_coin c1 = Some c2"
+    assume suc_1_2: "suc c1 c2"
       and neq: "c \<noteq> c1"
     show "val_unit c mod val_unit c2 div val_unit c1 = 0"
     proof (cases "less_coin c2 c")
       case True
-      hence "val_unit c2 dvd val_unit c" using dvd_val_units[where ?v1.0="val_unit c2" and ?v2.0="val_unit c"] next_coin1 by (simp add: less_coin_def)
+      hence "val_unit c2 dvd val_unit c" using dvd_val_units[where ?v1.0="val_unit c2" and ?v2.0="val_unit c"] suc_def by (simp add: less_coin_def)
       hence "val_unit c mod val_unit c2 = 0" by simp
       thus ?thesis by simp
     next
@@ -472,96 +421,40 @@ unfolding normalize_def proof -
         thus "val_unit c div val_unit c1 = 0" by (simp add: less_coin_def)
       next
         case False
-        hence 2: "less_coin c1 c" using neq by (meson less_coin_def local.not_less_iff_gr_or_eq)
-        assume 3: "val_unit c < val_unit c2"
-        have "\<nexists>c3. less_coin c1 c3 \<and> less_coin c3 c2" using 1 next_coin1 by blast
-        hence "False" using 2 3 by (simp add: less_coin_def)
+        hence less: "less_coin c1 c" using neq by (meson less_coin_def local.not_less_iff_gr_or_eq)
+        assume val_unit_gt: "val_unit c < val_unit c2"
+        have "\<nexists>c3. less_coin c1 c3 \<and> less_coin c3 c2" using suc_1_2 unfolding suc_def by blast
+        hence "False" using less val_unit_gt by (simp add: less_coin_def)
         thus "val_unit c div val_unit c1 = 0" by simp
       qed
     qed
   qed
-  have 1: "\<And>ca. (case next_coin ca of None \<Rightarrow> val_unit c div val_unit ca | Some c' \<Rightarrow> val_unit c mod val_unit c' div val_unit ca) = (if c = ca then 1 else 0)"
+  have *: "\<And>ca. (if ca = Max UNIV then val_unit c div val_unit ca else val_unit c mod val_unit (The (suc ca)) div val_unit ca) = (if c = ca then 1 else 0)"
   proof -
     fix ca :: 'a
-    show "(case next_coin ca of None \<Rightarrow> val_unit c div val_unit ca | Some c' \<Rightarrow> val_unit c mod val_unit c' div val_unit ca) = (if c = ca then 1 else 0)"
-    proof (cases "next_coin ca")
-      case None
+    show " (if ca = Max UNIV then val_unit c div val_unit ca else val_unit c mod val_unit (The (suc ca)) div val_unit ca) = (if c = ca then 1 else 0)"
+    proof (cases "ca = Max UNIV")
+      case True
       thus ?thesis using 1 by simp
     next
-      case (Some a)
-      thus ?thesis using 2 by simp
+      case False
+      have "Max UNIV = top" using ex1_top is_top_def by force
+      then obtain cb where suc_a_b: "suc ca cb" using False by (metis exists_least_iff top.not_eq_extremum suc_def)
+      have 3: "val_unit c mod val_unit cb div val_unit ca = (if c = ca then 1 else 0)" using 2 suc_a_b .
+      have 4: "The (suc ca) = cb" using suc_a_b the_equality by (metis (full_types) neqE suc_def)
+      show ?thesis unfolding 4 3 using False by simp
     qed
   qed
-  have 2: "UNIV = (UNIV - {c}) \<union> {c}" by blast
-  show "sum (\<lambda>ca. replicate_mset (case next_coin ca of None \<Rightarrow> val_unit c div val_unit ca | Some c' \<Rightarrow> val_unit c mod val_unit c' div val_unit ca) ca) UNIV = {#c#}"
-  unfolding 1 proof (subst 2)
-    have 3: "sum (\<lambda>ca. replicate_mset (if c = ca then 1 else 0) ca) (UNIV - {c} \<union> {c}) = sum (\<lambda>ca. replicate_mset (if c = ca then 1 else 0) ca) (UNIV - {c}) + sum (\<lambda>ca. replicate_mset (if c = ca then 1 else 0) ca) {c}"
-      by (metis (no_types, lifting) "2" Diff_UNIV Diff_eq_empty_iff finite sum.subset_diff)
-    show "sum (\<lambda>ca. replicate_mset (if c = ca then 1 else 0) ca) (UNIV - {c} \<union> {c}) = {#c#}"
-    unfolding 3 by simp
-  qed
-qed
-
-lemma sum_Un:
-  fixes f :: "'b \<Rightarrow> 'a multiset"
-  assumes "finite X" "finite Y"
-    and "disjnt X Y"
-  shows "sum f (X \<union> Y) = sum f X + sum f Y"
-  by (meson assms(1) assms(2) assms(3) disjnt_def sum.union_disjoint)
-
-lemma sum_subst:
-  fixes f :: "'b \<Rightarrow> 'a multiset"
-  assumes "\<And>y. \<lbrakk> y \<in> X; x \<noteq> y \<rbrakk> \<Longrightarrow> f y = g y"
-  shows "sum f (X - {x}) = sum g (X - {x})"
-  by (metis DiffD1 DiffD2 assms(1) singletonI sum.cong)
-
-lemma
-  assumes "Some c2 = next_coin coin1"
-    and "1 < v" "v < val_unit c2"
-  shows "normalize v = replicate_mset v coin1"
-unfolding normalize_def proof -
-  have 1: "UNIV = UNIV - {coin1} \<union> {coin1}" by blast
-  show "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) UNIV = replicate_mset v coin1"
-  proof (subst 1)
-    have 2: "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) (UNIV - {coin1} \<union> {coin1}) = sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) (UNIV - {coin1}) + sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) {coin1}"
-      by (rule sum_Un; simp)
-    show "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) (UNIV - {coin1} \<union> {coin1}) = replicate_mset v coin1"
-    unfolding 2 proof -
-      have 3: "\<And>c. c \<noteq> coin1 \<Longrightarrow> v < val_unit c"
-      proof -
-        fix c
-        assume neq1: "c \<noteq> coin1"
-        show "v < val_unit c"
-        proof (cases "c = c2")
-          case True
-          thus ?thesis using assms(3) by simp
-        next
-          case False
-          note neq2 = False
-          hence "\<nexists>c3. val_unit coin1 < val_unit c3 \<and> val_unit c3 < val_unit c2" using assms(1) next_coin1 less_coin_def by metis
-          thus ?thesis using neq1 neq2 using assms(3) neq_coin1_implies_val_unit_gt_1 val_unit_coin1 by fastforce
-        qed
-      qed
-      have 4: "\<And>c. c \<noteq> coin1 \<Longrightarrow> v div val_unit c = 0" using 3 by simp
-      have 5: "\<And>c c'. \<lbrakk> c \<noteq> coin1; Some c' = next_coin c \<rbrakk> \<Longrightarrow> v mod val_unit c' div val_unit c = 0"
-      proof -
-        fix c c'
-        assume neq: "c \<noteq> coin1" and x: "Some c' = next_coin c"
-        have neq': "c' \<noteq> coin1" using next_coin_neq_Some_coin1[where ?c=c] x by auto
-        have "v < val_unit c'" using 3 neq' by simp
-        hence 6: "v mod val_unit c' = v" by simp
-        have 7: "v < val_unit c" using 3 neq by simp
-        thus " v mod val_unit c' div val_unit c = 0" unfolding 6 using 7 by simp
-      qed
-      have "\<And>c. c \<noteq> coin1 \<Longrightarrow> (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) = 0" using 4 5 by (simp add: option.case_eq_if)
-      hence 8: "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) (UNIV - {coin1}) = {#}"
-        by simp
-      have "\<And>c. c = coin1 \<Longrightarrow> (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) = v"
-        by (simp add: assms(1)[symmetric] assms(3))
-      hence 9: "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) {coin1} = replicate_mset v coin1"
-       by simp
-      show "sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) (UNIV - {coin1}) + sum (\<lambda>c. replicate_mset (case next_coin c of None \<Rightarrow> v div val_unit c | Some c' \<Rightarrow> v mod val_unit c' div val_unit c) c) {coin1} = replicate_mset v coin1"
-      unfolding 8 9 by simp
+  have 2: "UNIV = insert c (UNIV - {c})" by blast
+  show "(\<Sum>ca\<in>UNIV. replicate_mset (if ca = local.Max UNIV then val_unit c div val_unit ca else val_unit c mod val_unit (The (suc ca)) div val_unit ca) ca) = {#c#}"
+    unfolding * proof (subst 2)
+    show "(\<Sum>ca\<in> insert c (UNIV - {c}). replicate_mset (if c = ca then 1 else 0) ca) = {#c#}" 
+    proof (subst sum.insert)
+      show "finite (UNIV - {c})" by simp
+    next
+      show "c \<notin> UNIV - {c}" by simp
+    next
+      show "replicate_mset (if c = c then 1 else 0) c + (\<Sum>ca\<in>UNIV - {c}. replicate_mset (if c = ca then 1 else 0) ca) = {#c#}" by simp
     qed
   qed
 qed
@@ -587,140 +480,45 @@ next
   thus ?case by simp
 qed
 
+lemma
+  assumes "suc (Max A) y"
+  shows "normalize_on (insert y A) v = (normalize_on A v) - (replicate_mset (v div val_uni) (Max A)) + (replicate_mset TODO y)"
 
-lemma size_replicate_mset: "size (replicate_mset n c) = n"
- by simp
-
-lemma card_UNIV_eq_1D:
-  assumes UNIV: "card (UNIV :: 'a set) = 1"
-  shows "next_coin coin1 = None"
-proof -
-  have 1: "\<And>X x. \<lbrakk> x \<in> X; card X = 1 \<rbrakk> \<Longrightarrow> X = {x}" using card_1_singletonE by blast
-  hence 2: "(UNIV::'a set) = {coin1}"
-  proof (rule_tac 1[where ?X1="UNIV :: 'a set" and ?x1=coin1])
-    show "coin1 \<in> UNIV" by simp
-  next
-    show "card (UNIV :: 'a set) = 1" using UNIV .
+lemma val_normalize_on: "val (normalize_on {c1. less_eq_coin c1 ct} v) = v"
+proof (induct ct arbitrary: v rule: transfinite_induct)
+  case 1
+  have 2: "{c1. less_eq_coin c1 bot} = {bot}"
+  proof auto
+    fix x
+    assume "less_eq_coin x bot"
+    thus "x = bot" using bot_unique by force
   qed
-  show "next_coin coin1 = None" by (simp add: 2 next_coin_eq_None)
+  thus ?case unfolding 2 by (auto simp add: val_def normalize_on_def)
+next
+  case (2 x y)
+  assume 1: "\<And>v. val (normalize_on {c1. less_eq_coin c1 x} v) = v"
+    and 2: "suc x y"
+  have less: "less_coin x y" and nex: "\<nexists>z. less_coin x z \<and> less_coin z y" using 2 unfolding suc_def by blast
+  have 3: "{c1. less_eq_coin c1 y} = insert y {c1. less_eq_coin c1 x}" using nex sorry
+  have "y \<notin> {c1. less_eq_coin c1 x}" using less by auto
+  thus ?case unfolding 3 proof auto
 qed
-
-lemma finite_induct1_max:
-  fixes X :: "'a set"
-  assumes finite: "finite X"
-    and mem: "x \<in> X"
-    and x_eq_Min: "x = Min X"
-    and base: "P {x}"
-    and step: "\<And>X x'. \<lbrakk> finite X; P X; x' \<notin> X; x \<in> X; x = Min X; \<And>x''. x'' \<in> X \<Longrightarrow> less_coin x'' x' \<rbrakk> \<Longrightarrow> P (insert x' X)"
-  shows "P X"
-proof -
-  obtain X' where X_eq: "X = insert x X'" and nmem: "x \<notin> X'" using Set.set_insert[OF mem] .
-  have finite': "finite X'" using X_eq finite by simp
-  show ?thesis
-  using finite' mem x_eq_Min nmem unfolding X_eq proof (induct rule: finite_linorder_max_induct[where ?A=X'])
-    case empty
-    show ?case using base .
-  next
-    case (insert x' X)
-    assume finite': "finite X"
-      and step': "\<lbrakk>x \<in> insert x X; x = Min (insert x X); x \<notin> X\<rbrakk> \<Longrightarrow> P (insert x X)"
-      and nmem: "x \<notin> insert x' X"
-      and less_all: "\<forall>x'' \<in> X. less_coin x'' x'"
-      and Min: "x = Min (insert x (insert x' X))"
-    have x_eq: "x = Min (insert x X)"
-    proof -
-      have 1: "finite (insert x (insert x' X))" using finite' by simp
-      have 2: "x \<noteq> x'" using nmem by blast
-      have 3: "x = Min (insert x (insert x' X) - {x'})"
-      proof -
-        have Min_subI: "\<And>X x y. \<lbrakk> finite X; x = Min X; x \<noteq> y \<rbrakk> \<Longrightarrow> x = Min (X - {y})"
-        proof -
-          fix X :: "'a set" and x y :: 'a
-          assume finite: "finite X"
-            and x_eq: "x = Min X"
-            and x_neq: "x \<noteq> y"
-          show "x = Min (X - {y})"
-          proof (cases "y \<in> X")
-            case True
-            then show ?thesis using local.Min.remove local.finite_code local.min_def x_eq x_neq by presburger
-          next
-            case False
-            then show ?thesis by (simp add: x_eq)
-          qed
-        qed
-        show "x = Min (insert x (insert x' X) - {x'})" using Min_subI[where ?X1="insert x (insert x' X)" and ?x1=x and ?y1=x'] 1 Min 2 .
-      qed
-      have 4: "insert x (insert x' X) - {x'} = insert x X" using less_all nmem by fastforce
-      show "x = Min (insert x X)" using 3 unfolding 4 .
-    qed
-    show ?case
-    using step proof (subst insert_commute; rule meta_mp[where P="True"])
-      show "finite (insert x X)" using finite' by blast
-    next
-      show "P (insert x X)"
-      using step' proof (rule meta_mp; simp)
-      next
-        show "x = Min (insert x X)" using x_eq .
-      next
-        show "x \<notin> X" using nmem by blast
-      qed
-    next
-      show "x' \<notin> insert x X" using nmem less_all by fastforce
-    next
-      show "x \<in> insert x X" by simp
-    next
-      show "x = Min (insert x X)" using x_eq .
-    next
-      fix x''
-      assume "x'' \<in> insert x X"
-      thus "less_coin x'' x'" by (metis Min Min_le finite' finite_insert insert_iff less_all less_le nmem)
-    next
-      show True by simp
-    qed
-  qed
-qed
-
 
 lemma val_normalize: "val (normalize v) = v"
 unfolding normalize_def proof (simp add: val_sum val_replicate_mset)
-  show "(\<Sum>x\<in>UNIV. (case next_coin x of None \<Rightarrow> v div val_unit x | Some c' \<Rightarrow> v mod val_unit c' div val_unit x) * val_unit x) = v"
-  unfolding next_coin_def
-  using finite proof (induct arbitrary: v rule: finite_induct1_max[where ?x=coin1])
-    show "finite (UNIV::'a set)" using finite .
+  show "(\<Sum>x\<in>UNIV. (if x = top then v div val_unit x else v mod val_unit (The (suc x)) div val_unit x) * val_unit x) = v"
+proof -
+  have UNIV_eq: "UNIV = {c. less_eq_coin c top}" by simp
+  show "(\<Sum>x\<in>UNIV. (if x = top then v div val_unit x else v mod val_unit (The (suc x)) div val_unit x) * val_unit x) = v"
+  unfolding UNIV_eq proof (induct top rule: transfinite_induct)
+    case 1
+    have 2: "{c. less_eq_coin c local.top} = {local.bot}"  by (metis (mono_tags) "1.hyps" Collect_cong UNIV_I all_not_in_conv bot_def ex1_bot is_bot_def local.finite_code local.finite_has_maximal local.top_greatest singleton_conv2 the_equality)
+    show ?case unfolding 2 using 1[symmetric] by auto
   next
-    show "coin1 \<in> UNIV" by simp
-  next
-    show "coin1 = Min UNIV" using Min_UNIV by force
-  next
-    fix v
-    have 1: "next_coin_on {coin1} coin1 = None" using next_coin_on_eq_None by fastforce
-    show "(\<Sum>x\<in>{coin1}. (case next_coin_on {coin1} x of None \<Rightarrow> v div val_unit x | Some c' \<Rightarrow> v mod val_unit c' div val_unit x) * val_unit x) = v"
-      by (simp add: 1)
-  next
-    fix X x' v
-    assume "\<And>v. (\<And>x :: 'a set. finite x) \<Longrightarrow> (\<Sum>x\<in>X. (case next_coin_on X x of None \<Rightarrow> v div val_unit x | Some c' \<Rightarrow> v mod val_unit c' div val_unit x) * val_unit x) = v"
-    hence step: "\<And>v. (\<Sum>x\<in>X. (case next_coin_on X x of None \<Rightarrow> v div val_unit x | Some c' \<Rightarrow> v mod val_unit c' div val_unit x) * val_unit x) = v"
-    proof
-      fix v and x :: "'a set"
-      show "finite x" using finite .
-    next
-      fix v :: val
-      show "v = v" by (rule refl)
-    qed
-    assume nmem: "x' \<notin> X"
-      and mem: "coin1 \<in> X"
-      and coin1_eq: "coin1 = Min X"
-      and upper_bound: "\<And>x''. x'' \<in> X \<Longrightarrow> less_coin x'' x'"
-    have 1: "finite (insert x' X)" using finite .
-    have "x' = Max (insert x' X)" using upper_bound by (simp add: local.Max_insert2 local.dual_order.order_iff_strict)
-    hence 2: "next_coin_on (insert x' X) x' = None" using next_coin_on_eq_None by force
-    show "(\<Sum>x\<in>insert x' X. (case next_coin_on (insert x' X) x of None \<Rightarrow> v div val_unit x | Some c' \<Rightarrow> v mod val_unit c' div val_unit x) * val_unit x) = v"
-    using finite[where ?A=X] nmem proof (simp add: 2)
-      obtain y where y_eq: "y = Max X" and "y \<in> X" using mem by (metis empty_iff local.Max_in local.finite)
-      have "\<And>z. z \<noteq> y \<Longrightarrow> next_coin_on (insert x' X) z = next_coin_on X z" 
-      show "v div val_unit x' * val_unit x' +
-      (\<Sum>x\<in>X. (case next_coin_on (insert x' X) x of None \<Rightarrow> v div val_unit x | Some c' \<Rightarrow> v mod val_unit c' div val_unit x) * val_unit x) = v"
-    oops
+    case (2 x)
+    then show ?case sorry
+  qed
+
 
 theorem normal_form_normalize: "normal_form (normalize v)"
 unfolding normal_form_def normalize_def proof auto
